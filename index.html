@@ -1,0 +1,898 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>音楽理論作曲ツール</title>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@400;500;600&family=Space+Grotesk:wght@400;500;600&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#f5f6fa;--bg2:#fff;--bg3:#f0f1f6;--bg4:#e8eaf2;
+  --border:#e2e4ed;--border2:#d0d3e0;
+  --text:#1a1c2e;--text2:#6b6f8a;--text3:#b0b4c8;
+  --tonic:#0d9e6e;--tonic-bg:#e8f8f2;--tonic-border:#7dd4b8;
+  --dominant:#c47a00;--dominant-bg:#fef6e4;--dominant-border:#f5c96a;
+  --subdominant:#1e7fd4;--subdominant-bg:#e8f2fd;--subdominant-border:#80baf0;
+  --secondary:#b83880;--secondary-bg:#fce8f3;--secondary-border:#e899cc;
+  --r:10px;
+  --shadow:0 1px 3px rgba(0,0,0,.07),0 4px 16px rgba(0,0,0,.05);
+  --fret-h:280px; /* フローティング指板の高さ */
+}
+*{box-sizing:border-box;margin:0;padding:0}
+html,body{min-height:100vh;background:var(--bg);color:var(--text);font-family:'Noto Sans JP',sans-serif}
+body{padding:0 0 var(--fret-h)} /* 指板分のスペース確保 */
+
+/* ===== App Bar ===== */
+.app-bar{background:#fff;border-bottom:1px solid var(--border);padding:0 20px;height:52px;display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;z-index:100;box-shadow:0 1px 4px rgba(0,0,0,.06)}
+.app-bar-left{display:flex;align-items:center;gap:10px}
+.app-title{font-family:'Space Grotesk',sans-serif;font-size:17px;font-weight:600;letter-spacing:-.02em}
+.app-title span{color:var(--tonic)}
+.hamburger{width:36px;height:36px;border-radius:8px;border:1px solid var(--border);background:transparent;cursor:pointer;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4.5px;transition:all .15s;flex-shrink:0}
+.hamburger:hover{background:var(--bg3)}
+.hamburger span{display:block;width:15px;height:1.5px;background:var(--text2);border-radius:2px;transition:all .25s}
+.hamburger.open span:nth-child(1){transform:translateY(6px) rotate(45deg)}
+.hamburger.open span:nth-child(2){opacity:0;transform:scaleX(0)}
+.hamburger.open span:nth-child(3){transform:translateY(-6px) rotate(-45deg)}
+
+/* ===== Glossary Drawer ===== */
+.g-overlay{position:fixed;inset:0;background:rgba(0,0,0,.22);z-index:200;opacity:0;pointer-events:none;transition:opacity .25s}
+.g-overlay.open{opacity:1;pointer-events:all}
+.g-drawer{position:fixed;top:0;right:0;width:360px;max-width:96vw;height:100vh;background:#fff;border-left:1px solid var(--border);z-index:201;transform:translateX(100%);transition:transform .3s cubic-bezier(.4,0,.2,1);display:flex;flex-direction:column}
+.g-drawer.open{transform:translateX(0)}
+.g-head{padding:16px 18px 12px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;position:sticky;top:0;background:#fff}
+.g-head h2{font-size:15px;font-weight:600}
+.g-close{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:15px;color:var(--text2);display:flex;align-items:center;justify-content:center}
+.g-close:hover{background:var(--bg3)}
+.g-body{padding:14px 18px 24px;overflow-y:auto;flex:1;min-height:0;display:flex;flex-direction:column;gap:3px}
+.g-cat{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin:14px 0 5px;padding-bottom:4px;border-bottom:1px solid var(--border)}
+.g-cat:first-child{margin-top:0}
+.g-item{border-radius:8px;border:1px solid var(--border);margin-bottom:3px}
+.g-q{padding:9px 13px;cursor:pointer;display:flex;align-items:center;justify-content:space-between;font-size:13px;font-weight:500;background:#fff;user-select:none;border-radius:8px}
+.g-q.open{border-radius:8px 8px 0 0}
+.g-q:hover{background:var(--bg3)}
+.g-chev{font-size:9px;color:var(--text3);transition:transform .2s;flex-shrink:0;margin-left:8px}
+.g-q.open > .g-chev{transform:rotate(180deg)}
+.g-ans{font-size:12px;line-height:1.75;color:var(--text2);padding:0 13px;max-height:0;overflow:hidden;transition:max-height .35s ease,padding .2s;border-radius:0 0 8px 8px}
+.g-ans.open{max-height:600px;padding:8px 13px 14px}
+
+/* ===== Main layout ===== */
+.main-wrap{max-width:1200px;margin:0 auto;padding:20px 16px 0;display:grid;grid-template-columns:400px 1fr;gap:18px;align-items:start}
+.card{background:var(--bg2);border:1px solid var(--border);border-radius:14px;padding:18px 20px;box-shadow:var(--shadow)}
+.card-label{font-size:10px;font-weight:600;color:var(--text3);letter-spacing:.1em;text-transform:uppercase;margin-bottom:12px}
+
+/* CoF */
+.cof-wrap{display:flex;flex-direction:column;align-items:center;position:sticky;top:68px}
+#cof-svg{max-width:100%;cursor:pointer}
+.cof-toggles{display:flex;gap:8px;margin-top:14px;width:100%}
+.toggle-pill{flex:1;padding:7px 0;border-radius:20px;border:1px solid var(--border2);background:transparent;color:var(--text2);font-size:12px;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s}
+.toggle-pill:hover{border-color:var(--tonic-border);color:var(--tonic)}
+.toggle-pill.on{background:var(--tonic-bg);border-color:var(--tonic-border);color:var(--tonic)}
+.cof-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;justify-content:center}
+.cof-leg{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.cof-leg-dot{width:8px;height:8px;border-radius:2px}
+
+/* Right panel */
+.right-panel{display:flex;flex-direction:column;gap:14px}
+.key-name{font-family:'Space Grotesk',sans-serif;font-size:24px;font-weight:600;margin-bottom:12px}
+.key-name span{color:var(--tonic)}
+.legend{display:flex;gap:8px;flex-wrap:wrap;margin-bottom:10px}
+.leg{display:flex;align-items:center;gap:4px;font-size:11px;color:var(--text2)}
+.leg-dot{width:7px;height:7px;border-radius:2px;flex-shrink:0}
+.chord-grid{display:flex;gap:7px;flex-wrap:wrap}
+.chord-btn{border:1px solid var(--border2);border-radius:var(--r);padding:9px 11px;min-width:78px;text-align:center;cursor:pointer;background:var(--bg3);transition:all .15s;user-select:none}
+.chord-btn:hover{transform:translateY(-2px);box-shadow:0 4px 12px rgba(0,0,0,.09)}
+.chord-btn.active{border-width:1.5px;box-shadow:0 2px 8px rgba(0,0,0,.08)}
+.chord-btn.tonic{border-color:var(--tonic-border)}.chord-btn.tonic.active{background:var(--tonic-bg)}
+.chord-btn.dominant{border-color:var(--dominant-border)}.chord-btn.dominant.active{background:var(--dominant-bg)}
+.chord-btn.subdominant{border-color:var(--subdominant-border)}.chord-btn.subdominant.active{background:var(--subdominant-bg)}
+.chord-btn.secondary{border-color:var(--secondary-border)}.chord-btn.secondary.active{background:var(--secondary-bg)}
+.chord-name{font-family:'Space Grotesk',sans-serif;font-size:14px;font-weight:600;color:var(--text)}
+.chord-roman{font-size:10px;color:var(--text2);margin-top:2px}
+.chord-role-tag{font-size:9px;margin-top:3px;padding:1px 5px;border-radius:10px;display:inline-block;font-weight:600}
+.role-T{background:var(--tonic-bg);color:var(--tonic)}
+.role-D{background:var(--dominant-bg);color:var(--dominant)}
+.role-SD{background:var(--subdominant-bg);color:var(--subdominant)}
+.role-SD2{background:var(--secondary-bg);color:var(--secondary)}
+.notes-section{display:flex;flex-direction:column;gap:9px}
+.notes-row{display:flex;align-items:flex-start;gap:10px}
+.notes-row-label{font-size:11px;color:var(--text2);min-width:80px;padding-top:4px;flex-shrink:0}
+.notes-pills{display:flex;flex-wrap:wrap;gap:4px}
+.note-pill{padding:2px 9px;border-radius:14px;font-size:12px;font-weight:500;border:1px solid var(--border2);color:var(--text2);background:var(--bg3);font-family:'Space Grotesk',sans-serif;white-space:nowrap}
+.note-pill.root{background:var(--tonic);border-color:var(--tonic);color:#fff}
+.note-pill.chord-tone{background:var(--tonic-bg);border-color:var(--tonic-border);color:var(--tonic)}
+.note-pill.seventh{background:var(--dominant-bg);border-color:var(--dominant-border);color:var(--dominant)}
+.note-pill.tension{background:var(--secondary-bg);border-color:var(--secondary-border);color:var(--secondary)}
+.note-pill.avoid{background:#fff0f0;border-color:#f0b0b0;color:#c04040;text-decoration:line-through;opacity:.8}
+.tension-legend{display:flex;gap:10px;flex-wrap:wrap;margin-top:10px;padding-top:10px;border-top:1px solid var(--border)}
+.tl-item{display:flex;align-items:center;gap:4px;font-size:10px;color:var(--text2)}
+.tl-dot{width:7px;height:7px;border-radius:50%}
+.empty-state{color:var(--text3);font-size:13px;padding:12px 0;text-align:center}
+
+/* ===== Floating Fretboard Panel ===== */
+.fret-panel{
+  position:fixed;
+  bottom:0;left:0;right:0;
+  z-index:150;
+  transform:translateY(calc(100% - 48px)); /* タブだけ見える */
+  transition:transform .35s cubic-bezier(.4,0,.2,1);
+}
+.fret-panel.open{transform:translateY(0)}
+/* タブ（引き出しハンドル） */
+.fret-tab{
+  height:48px;
+  background:#fff;
+  border-top:1px solid var(--border);
+  border-left:1px solid var(--border);
+  border-right:1px solid var(--border);
+  border-radius:14px 14px 0 0;
+  display:flex;align-items:center;
+  padding:0 16px;gap:10px;cursor:pointer;
+  box-shadow:0 -2px 12px rgba(0,0,0,.07);
+  user-select:none;
+}
+.fret-tab:hover{background:var(--bg3)}
+.fret-tab-pill{
+  padding:3px 10px;border-radius:20px;font-size:11px;font-weight:600;
+  border:1px solid var(--tonic-border);background:var(--tonic-bg);color:var(--tonic);
+  font-family:'Space Grotesk',sans-serif;white-space:nowrap;
+}
+.fret-tab-label{font-size:13px;font-weight:500;color:var(--text2)}
+.fret-tab-notes{display:flex;gap:4px;margin-left:4px;flex-wrap:nowrap;overflow:hidden}
+.fret-tab-chevron{margin-left:auto;font-size:11px;color:var(--text3);transition:transform .3s;flex-shrink:0}
+.fret-panel.open .fret-tab-chevron{transform:rotate(180deg)}
+/* 本体 */
+.fret-body{
+  background:#fff;
+  border-top:1px solid var(--border);
+  padding:12px 16px 12px;
+  height:calc(var(--fret-h) - 48px);
+  overflow:hidden;
+  display:flex;
+  flex-direction:column;
+  gap:8px;
+}
+.fret-body-inner{display:contents} /* 直下要素をfret-bodyのflexアイテムとして扱う */
+.fret-top-row{display:flex;align-items:center;gap:8px;flex-wrap:wrap;flex-shrink:0;min-height:28px}
+.fret-chord-name{font-family:'Space Grotesk',sans-serif;font-size:18px;font-weight:600;color:var(--text)}
+.fret-fn-badge{padding:2px 8px;border-radius:10px;font-size:10px;font-weight:600;border:1px solid;white-space:nowrap}
+.play-btn{padding:4px 14px;border-radius:20px;border:1px solid var(--tonic-border);background:var(--tonic-bg);color:var(--tonic);font-size:12px;font-weight:600;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s;margin-left:auto;flex-shrink:0}
+.play-btn:hover{background:var(--tonic);color:#fff}
+.fret-svg-scroll{overflow-x:auto;overflow-y:hidden;flex:1;min-height:0;-webkit-overflow-scrolling:touch}
+.fret-svg-scroll::-webkit-scrollbar{height:5px}
+.fret-svg-scroll::-webkit-scrollbar-track{background:var(--bg3);border-radius:3px}
+.fret-svg-scroll::-webkit-scrollbar-thumb{background:var(--border2);border-radius:3px}
+.fret-svg-scroll svg{display:block}
+.fret-legend-row{display:flex;gap:14px;flex-shrink:0;font-size:10px;color:var(--text3);align-items:center}
+
+/* ===== Responsive ===== */
+@media(max-width:900px){
+  .main-wrap{grid-template-columns:1fr}
+  .cof-wrap{position:static}
+  #cof-svg{width:320px;height:320px}
+}
+@media(max-width:480px){
+  .main-wrap{padding:12px 12px 0}
+  #cof-svg{width:280px;height:280px}
+  .fret-tab-notes{display:none}
+  .chord-btn{min-width:68px;padding:8px 8px}
+  .chord-name{font-size:13px}
+}
+
+/* ===== Game Button ===== */
+.game-btn{padding:6px 14px;border-radius:20px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:12px;font-weight:500;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s;white-space:nowrap}
+.game-btn:hover{border-color:var(--subdominant-border);color:var(--subdominant);background:var(--subdominant-bg)}
+
+/* ===== Game Modal ===== */
+.gm-overlay{position:fixed;inset:0;background:rgba(0,0,0,.35);z-index:300;opacity:0;pointer-events:none;transition:opacity .2s;display:flex;align-items:center;justify-content:center;padding:16px}
+.gm-overlay.open{opacity:1;pointer-events:all}
+.gm-modal{background:#fff;border-radius:18px;width:100%;max-width:520px;max-height:90vh;display:flex;flex-direction:column;box-shadow:0 8px 40px rgba(0,0,0,.18);transform:translateY(20px) scale(.97);transition:transform .25s cubic-bezier(.4,0,.2,1)}
+.gm-overlay.open .gm-modal{transform:translateY(0) scale(1)}
+.gm-mhead{padding:16px 20px 14px;border-bottom:1px solid var(--border);display:flex;align-items:center;justify-content:space-between;flex-shrink:0}
+.gm-mhead h2{font-size:15px;font-weight:600;display:flex;align-items:center;gap:8px}
+.gm-close{width:30px;height:30px;border-radius:6px;border:1px solid var(--border);background:transparent;cursor:pointer;font-size:16px;color:var(--text2);display:flex;align-items:center;justify-content:center}
+.gm-close:hover{background:var(--bg3)}
+.gm-tabs{display:flex;border-bottom:1px solid var(--border);flex-shrink:0}
+.gm-tab{flex:1;padding:11px 0;text-align:center;font-size:13px;font-weight:500;color:var(--text2);cursor:pointer;border:none;background:transparent;font-family:'Noto Sans JP',sans-serif;transition:all .15s;border-bottom:2px solid transparent;margin-bottom:-1px}
+.gm-tab:hover{color:var(--text);background:var(--bg3)}
+.gm-tab.active{color:var(--subdominant);border-bottom-color:var(--subdominant)}
+.gm-body{padding:20px;overflow-y:auto;flex:1;min-height:0}
+.gm-section{display:none;flex-direction:column;gap:16px}
+.gm-section.active{display:flex}
+.gm-ctrl{display:flex;align-items:center;gap:10px;flex-wrap:wrap}
+.gm-ctrl-label{font-size:12px;color:var(--text2);min-width:72px}
+.gm-slider{flex:1;min-width:100px;accent-color:var(--subdominant)}
+.gm-val{font-size:12px;font-weight:600;color:var(--text);min-width:52px;text-align:right;font-family:'Space Grotesk',sans-serif}
+.gm-toggle-group{display:flex;gap:6px;flex-wrap:wrap}
+.gm-toggle-btn{padding:5px 12px;border-radius:16px;border:1px solid var(--border2);background:var(--bg3);color:var(--text2);font-size:11px;font-weight:500;cursor:pointer;font-family:'Noto Sans JP',sans-serif;transition:all .15s}
+.gm-toggle-btn:hover{border-color:var(--subdominant-border);color:var(--subdominant)}
+.gm-toggle-btn.on{background:var(--subdominant-bg);border-color:var(--subdominant-border);color:var(--subdominant)}
+.gm-display{background:var(--bg3);border-radius:14px;padding:28px 20px;text-align:center;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
+.gm-display-main{font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:600;color:var(--text);line-height:1;transition:opacity .08s}
+.gm-display-main.flash{opacity:0}
+.gm-display-sub{font-size:14px;color:var(--text2);font-family:'Space Grotesk',sans-serif;font-weight:500}
+.gm-progress-track{width:100%;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
+.gm-progress-bar{height:100%;background:var(--subdominant);border-radius:2px;transition:width linear}
+.gm-start{width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--subdominant);color:#fff;font-size:14px;font-weight:600;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s}
+.gm-start:hover{filter:brightness(1.1)}
+.gm-start.running{background:var(--bg3);color:#c04040;border:1px solid #f0b0b0}
+
+</style>
+</head>
+<body>
+
+<!-- App Bar -->
+<div class="app-bar">
+  <div class="app-bar-left">
+    <button class="hamburger" id="hamburger" onclick="toggleGlossary()" title="用語集">
+      <span></span><span></span><span></span>
+    </button>
+    <div class="app-title">🎸 <span>作曲</span>ツール</div>
+  </div>
+  <button class="game-btn" onclick="openGame()" title="トレーニングゲーム">🎮 トレーニング</button>
+</div>
+
+<!-- Glossary -->
+<div class="g-overlay" id="g-overlay" onclick="toggleGlossary()"></div>
+<div class="g-drawer" id="g-drawer">
+  <div class="g-head">
+    <h2>📖 音楽理論 用語集</h2>
+    <button class="g-close" onclick="toggleGlossary()">✕</button>
+  </div>
+  <div class="g-body" id="g-body"></div>
+</div>
+
+
+<!-- Game Modal -->
+<div class="gm-overlay" id="gm-overlay" onclick="handleGameOverlayClick(event)">
+  <div class="gm-modal" id="gm-modal">
+    <div class="gm-mhead">
+      <h2>🎮 トレーニング</h2>
+      <button class="gm-close" onclick="closeGame()">✕</button>
+    </div>
+    <div class="gm-tabs">
+      <button class="gm-tab active" id="tab-fret" onclick="switchGameTab('fret')">🎸 指板クイズ</button>
+      <button class="gm-tab" id="tab-chord" onclick="switchGameTab('chord')">🎵 運指トレーニング</button>
+    </div>
+    <div class="gm-body">
+
+      <!-- ===== 指板クイズ ===== -->
+      <div class="gm-section active" id="sec-fret">
+        <div class="gm-ctrl">
+          <span class="gm-ctrl-label">切替間隔</span>
+          <input class="gm-slider" type="range" id="fq-speed" min="1" max="10" value="4" oninput="document.getElementById('fq-speed-val').textContent=this.value+'秒'">
+          <span class="gm-val" id="fq-speed-val">4秒</span>
+        </div>
+        <div class="gm-ctrl">
+          <span class="gm-ctrl-label">フレット範囲</span>
+          <input class="gm-slider" type="range" id="fq-maxfret" min="5" max="24" value="12" oninput="document.getElementById('fq-fret-val').textContent='1〜'+this.value+'f'">
+          <span class="gm-val" id="fq-fret-val">1〜12f</span>
+        </div>
+        <div class="gm-display" id="fq-display">
+          <div class="gm-display-main" id="fq-main">—</div>
+          <div class="gm-display-sub" id="fq-sub">スタートを押してください</div>
+        </div>
+        <div class="gm-progress-track"><div class="gm-progress-bar" id="fq-bar" style="width:0%"></div></div>
+        <button class="gm-start" id="fq-btn" onclick="toggleFretQuiz()">▶ スタート</button>
+      </div>
+
+      <!-- ===== 運指トレーニング ===== -->
+      <div class="gm-section" id="sec-chord">
+        <div class="gm-ctrl">
+          <span class="gm-ctrl-label">BPM</span>
+          <input class="gm-slider" type="range" id="cg-bpm" min="20" max="200" value="60" oninput="cgUpdateBpm(this.value)">
+          <span class="gm-val" id="cg-bpm-val">60</span>
+        </div>
+        <div class="gm-ctrl">
+          <span class="gm-ctrl-label">モード</span>
+          <div class="gm-toggle-group">
+            <button class="gm-toggle-btn on" id="cgm-note" onclick="toggleCgMode('note')">音名のみ</button>
+            <button class="gm-toggle-btn" id="cgm-triad" onclick="toggleCgMode('triad')">コード M/m</button>
+            <button class="gm-toggle-btn" id="cgm-7th" onclick="toggleCgMode('7th')">コード 7th</button>
+            <button class="gm-toggle-btn" id="cgm-mix" onclick="toggleCgMode('mix')">ごちゃまぜ</button>
+          </div>
+        </div>
+        <div style="font-size:11px;color:var(--text2);background:var(--bg3);border-radius:8px;padding:8px 12px;line-height:1.6">
+          表示された音名（またはコード）を実際のギターで押さえてください。BPMのテンポに合わせて次々と切り替わります。
+        </div>
+        <div class="gm-display" id="cg-display">
+          <div class="gm-display-main" id="cg-main">—</div>
+          <div class="gm-display-sub" id="cg-sub">スタートを押してください</div>
+        </div>
+        <div class="gm-progress-track"><div class="gm-progress-bar" id="cg-bar" style="width:0%"></div></div>
+        <button class="gm-start" id="cg-btn" onclick="toggleChordGame()">▶ スタート</button>
+      </div>
+
+    </div>
+  </div>
+</div>
+
+<!-- Main -->
+<div class="main-wrap">
+  <!-- CoF -->
+  <div class="card cof-wrap">
+    <div class="card-label">五度圏</div>
+    <svg id="cof-svg" width="360" height="360" viewBox="0 0 390 390" role="img"><title>五度圏</title></svg>
+    <div class="cof-toggles">
+      <button class="toggle-pill" id="seventh-toggle" onclick="toggleSeventh()">7thコード</button>
+    </div>
+    <div class="cof-legend">
+      <div class="cof-leg"><div class="cof-leg-dot" style="background:#1a1c2e"></div>メジャー</div>
+      <div class="cof-leg"><div class="cof-leg-dot" style="background:#1e7fd4"></div>マイナー</div>
+      <div class="cof-leg"><div class="cof-leg-dot" style="background:#b83880"></div>dim</div>
+    </div>
+  </div>
+
+  <!-- Right -->
+  <div class="right-panel">
+    <div class="card">
+      <div class="key-name" id="key-label"><span>C</span>メジャーキー</div>
+      <div class="legend">
+        <div class="leg"><div class="leg-dot" style="background:var(--tonic)"></div>トニック</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--dominant)"></div>ドミナント</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--subdominant)"></div>サブドミナント</div>
+        <div class="leg"><div class="leg-dot" style="background:var(--secondary)"></div>セカンダリーD</div>
+      </div>
+      <div class="chord-grid" id="chord-grid"></div>
+    </div>
+    <div class="card">
+      <div class="card-label">構成音 &amp; テンション</div>
+      <div id="notes-content"><p class="empty-state">コードをクリックしてください</p></div>
+      <div class="tension-legend" id="tension-legend" style="display:none">
+        <div class="tl-item"><div class="tl-dot" style="background:var(--tonic)"></div>ルート</div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--tonic);opacity:.5"></div>コードトーン</div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--dominant)"></div>7th</div>
+        <div class="tl-item"><div class="tl-dot" style="background:var(--secondary)"></div>テンション</div>
+        <div class="tl-item"><div class="tl-dot" style="background:#c04040"></div>アボイド</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Floating Fretboard -->
+<div class="fret-panel" id="fret-panel">
+  <div class="fret-tab" onclick="toggleFretboard()">
+    <span style="font-size:16px">🎸</span>
+    <span class="fret-tab-label" id="fret-tab-label">指板</span>
+    <div class="fret-tab-notes" id="fret-tab-notes"></div>
+    <span class="fret-tab-chevron" id="fret-tab-chevron">▲</span>
+  </div>
+  <div class="fret-body">
+      <div class="fret-top-row" id="fret-top-row">
+        <span style="color:var(--text3);font-size:12px">コードを選択してください</span>
+      </div>
+      <div class="fret-svg-scroll">
+        <svg id="fret-svg"></svg>
+      </div>
+      <div class="fret-legend-row">
+        <span>● コードトーン</span>
+        <span style="color:var(--secondary)">◆ テンション</span>
+        <span style="color:var(--text3);margin-left:auto;font-size:9px">← スクロールで全24フレット確認</span>
+      </div>
+  </div>
+</div>
+
+<script>
+// ===== Glossary =====
+const GLOSSARY=[
+
+  // ===== 音楽の基礎 =====
+  {cat:'音楽の基礎'},
+  {q:'半音・全音とは？',a:'半音（semitone）はピアノの隣り合う鍵盤1つ分の音程。全音は半音2つ分。例：CからC#が半音、CからDが全音。全ての音楽理論の距離感の基準になる単位。'},
+  {q:'音程（インターバル）とは？',a:'2つの音の高さの差のこと。1度（ユニゾン）・2度・3度…8度（オクターブ）などで表す。さらに「長・短・完全・増・減」で細かく分類する。例：CとEは長3度（4半音）、CとEbは短3度（3半音）。'},
+  {q:'オクターブとは？',a:'同じ音名で周波数が2倍（または1/2）になる音程。CからひとつうえのCまでが1オクターブ＝12半音。どんなに離れた音でも12半音ごとに同じ音名が繰り返される。'},
+  {q:'トライトーンとは？',a:'6半音（増4度・減5度）の音程。ルートから見て真正面に位置する最も不安定な音程で「悪魔の音程」とも呼ばれた。ドミナント7thコードにはトライトーン（3度と7度）が含まれており、これが強い解決欲求を生む原動力になっている。'},
+
+  // ===== スケール =====
+  {cat:'スケール（音階）'},
+  {q:'スケールとは？',a:'ある規則にしたがって並べた音の集合。どの音を使ってよいかの「パレット」に相当する。メロディーやコードはスケールをベースに作られる。代表的なものにメジャー・マイナー・ペンタトニック・ブルース・モードなどがある。'},
+  {q:'メジャースケールの構成は？',a:'ルートから「全・全・半・全・全・全・半」の間隔で並ぶ7音。Cメジャーなら C D E F G A B。明るく安定した響きで全音楽理論の基準となるスケール。このスケールの各音から始めるとモードが生まれる。'},
+  {q:'ナチュラルマイナースケールとは？',a:'ルートから「全・半・全・全・半・全・全」の間隔で並ぶ7音。Aマイナーなら A B C D E F G。暗く感情的な響き。メジャーの相対調（同じ音を使う）として成立する。エオリアンモードとも呼ばれる。'},
+  {q:'ハーモニックマイナースケールとは？',a:'ナチュラルマイナーの7度を半音上げたスケール（1・2・♭3・4・5・♭6・7）。短7度→長7度になることでV7コードが生まれ、強いドミナント解決が可能になる。エキゾチックで緊張感のある響きが特徴。クラシック・フラメンコ・メタルで多用。'},
+  {q:'メロディックマイナースケールとは？',a:'ナチュラルマイナーの6度と7度を両方半音上げたスケール（1・2・♭3・4・5・6・7）。ジャズでは上行形のみを常用し「ジャズマイナー」とも呼ばれる。このスケールから派生するモードはジャズのコードスケールで重要。'},
+  {q:'ペンタトニックスケールとは？',a:'5音で構成されるスケール。メジャーペンタは「1・2・3・5・6度」、マイナーペンタは「1・♭3・4・5・♭7度」。アボイドノートが含まれないためどの場面でも使いやすい万能スケール。ロック・ブルース・ポップスのソロで最も多く使われる。'},
+  {q:'ブルーススケールとは？',a:'マイナーペンタトニックに♭5（♯4）を加えた6音スケール。この♭5がブルーノートの核心で、独特のざらついた哀愁感を生む。ブルース・ロック・R&Bで感情表現の要として使われる。'},
+  {q:'ホールトーン（全音音階）スケールとは？',a:'全ての音程が全音（2半音）で等間隔に並ぶ6音スケール。C始まりなら C・D・E・F#・G#・A#。全ての音が対称的なため不思議な浮遊感・夢幻的な雰囲気を持つ。ドビュッシーが多用。ドミナントb5コード上で使われる。'},
+  {q:'ディミニッシュスケール（オクタトニック）とは？',a:'「半音・全音」または「全音・半音」を交互に繰り返す8音スケール。対称的な構造を持ちdim7コードやドミナント7thコード上で使われる。特に「全音・半音」型はドミナント7thのオルタード感と相性がよい。'},
+  {q:'オルタードスケールとは？',a:'メロディックマイナースケールの7番目の音から始めるモード（1・♭2・♯2・3・♭5・♭6・♭7）。全てのテンションがオルタード（変化）された状態で、ドミナント7thコード上で使うと最大限の緊張感が得られる。ジャズのV7alt上で多用。'},
+  {q:'リディアンドミナントスケールとは？',a:'メロディックマイナースケールの4番目の音から始めるモード（1・2・3・♯4・5・6・♭7）。メジャーの明るさと♭7の解決感、♯4の浮遊感が共存する独特の色彩。トライトーン代理コード（♭II7）やドミナント7th♯11上で使われる。'},
+
+  // ===== モード =====
+  {cat:'モード（旋法）'},
+  {q:'モードとは？',a:'メジャースケールの各音をルートとして並べ直すことで生まれる7種類のスケール。同じ音を使っていても出発点が変わると響きが変わる。イオニアン・ドリアン・フリジアン・リディアン・ミクソリディアン・エオリアン・ロクリアンの7つがある。'},
+  {q:'イオニアン（Ionian）とは？',a:'メジャースケールそのもの（1番目の音から）。「全全半全全全半」。明るく安定した基準のモード。Imaj7コードに合う。'},
+  {q:'ドリアン（Dorian）とは？',a:'メジャースケールの2番目の音から始めるモード（1・2・♭3・4・5・6・♭7）。ナチュラルマイナーの6度が半音上がった形。マイナーだが♮6があるため少し明るく洗練された印象。IIm7コードに対応。ジャズ・ロック・ファンクで多用。代表曲：So What（Miles Davis）。'},
+  {q:'フリジアン（Phrygian）とは？',a:'メジャースケールの3番目の音から始めるモード（1・♭2・♭3・4・5・♭6・♭7）。特徴は♭2度（フラットセカンド）。暗くスパニッシュ・フラメンコ的な響きが特徴。IIIm7コードに対応。エキゾチックな雰囲気の曲に使われる。'},
+  {q:'リディアン（Lydian）とは？',a:'メジャースケールの4番目の音から始めるモード（1・2・3・♯4・5・6・7）。特徴は♯4度（増4度）。メジャーより浮遊感があり夢幻的・輝かしい印象。IVmaj7コードに対応。映画音楽やプログレッシブロックで多用。'},
+  {q:'ミクソリディアン（Mixolydian）とは？',a:'メジャースケールの5番目の音から始めるモード（1・2・3・4・5・6・♭7）。メジャーの7度が半音下がった形。明るいが解決感がない独特のブルージーさ。V7コードに対応。ロック・ブルース・ファンクで多用。'},
+  {q:'エオリアン（Aeolian）とは？',a:'メジャースケールの6番目の音から始めるモード。ナチュラルマイナースケールと同じ（1・2・♭3・4・5・♭6・♭7）。暗く感情的な基本的なマイナーモード。VIm7コードに対応。'},
+  {q:'ロクリアン（Locrian）とは？',a:'メジャースケールの7番目の音から始めるモード（1・♭2・♭3・4・♭5・♭6・♭7）。唯一5度が減5度になる非常に不安定なモード。VIIm7♭5（ハーフディミニッシュ）コードに対応。ジャズのII-V-Iの中で活躍する。'},
+  {q:'モーダルインターチェンジとは？',a:'同主調（同じ主音を持つ）の別のモードからコードや音を借用すること。例：CメジャーキーでCフリジアンの♭IIや、Cドリアンのを使う。独特の色彩変化を演出でき、ポップス・ロック・ジャズで頻繁に使われる借用技法。'},
+  {q:'モーダルジャズとは？',a:'コード進行ではなくモード（スケール）を中心に即興演奏するジャズのスタイル。1959年のMiles Davis「Kind of Blue」で確立。1つのコードの上で長時間同じモードを演奏することで、コード進行の縛りから解放された自由な表現が可能になる。'},
+  {q:'フリジアンドミナントとは？',a:'ハーモニックマイナースケールの5番目の音から始めるモード（1・♭2・3・4・5・♭6・♭7）。フリジアンの♭2とメジャーの長3度が共存する独特の響き。スパニッシュ・フラメンコ・メタルで多用されるエキゾチックなスケール。V7コード上で使われる。'},
+
+  // ===== コード機能 =====
+  {cat:'コード機能'},
+  {q:'トニック（T）とは？',a:'曲の「家」。最も安定しており解決感がある。Cメジャーなら C（I）・Em（III）・Am（VI）がトニック機能を持つ。フレーズの終わりや落ち着かせたいときに使う。'},
+  {q:'ドミナント（D）とは？',a:'トニックへ強く引っ張る緊張感のあるコード。Cメジャーなら G（V）・Bdim（VII）がドミナント機能。G7（V7）はトライトーン（BとF）を含むため特に強い解決感を持つ。「緊張→解決」の核になる。'},
+  {q:'サブドミナント（SD）とは？',a:'トニックとドミナントの中間的なコード。柔らかい浮遊感がある。CメジャーならF（IV）・Dm（II）がサブドミナント機能。ドミナントほど強い解決感はなく、トニックへ直接戻ることも多い。'},
+  {q:'セカンダリードミナントとは？',a:'ダイアトニック外のコードで、次のコードに対して一時的なドミナントとして機能するもの。例：CキーでAmの前にE7を置くとE7がAmへのV7になる。転調感なく音楽に色をつけるテクニック。'},
+  {q:'代理コードとは？',a:'同じ機能を持つ別のコードで置き換えること。トニックのCをAmやEmで代理、ドミナントのG7をDb7（トライトーン代理）で代理できる。同じ機能なので音楽の流れを保ちつつ色彩を変えられる。'},
+  {q:'トライトーン代理とは？',a:'ドミナント7thコードを、ルートがトライトーン（6半音）離れたドミナント7thで置き換えること。例：G7をDb7で代理。両コードは共通のトライトーン（BとF）を持つため機能が似ている。ジャズで頻出で♭IIコードとも呼ばれる。'},
+  {q:'ディセプティブケーデンスとは？',a:'ドミナント（V）からトニック（I）に解決すると思わせておき、別のコード（多くはVI）に着地する偽終止のこと。例：G7→Am。聴き手の予想を裏切る意外性を演出できる。'},
+
+  // ===== コードの種類 =====
+  {cat:'コードの種類'},
+  {q:'トライアド（3和音）の4種類は？',a:'①メジャー（長3度+完全5度）：明るい。②マイナー（短3度+完全5度）：暗い。③ディミニッシュ（短3度+減5度）：不安定・怪しい。④オーギュメント（長3度+増5度）：浮遊感・緊張感。全てのコードはこの4種類を基本に拡張される。'},
+  {q:'メジャー7th（M7）とは？',a:'メジャートライアドに長7度を加えた4和音（1・3・5・7）。おしゃれで浮遊感のある響き。トニックまたはサブドミナントのメジャーコードに使われる。例：CM7＝C・E・G・B。ジャズ・ボサノバ・シティポップで多用。'},
+  {q:'ドミナント7th（7）とは？',a:'メジャートライアドに短7度を加えた4和音（1・3・5・♭7）。3度と7度がトライトーンを形成するため強い解決欲求が生まれる。Vコードとして使うのが基本。例：G7＝G・B・D・F。'},
+  {q:'マイナー7th（m7）とは？',a:'マイナートライアドに短7度を加えた4和音（1・♭3・5・♭7）。甘くJazzyな響き。IIコードまたはマイナーキーのトニックとして使われる。例：Dm7＝D・F・A・C。'},
+  {q:'マイナーメジャー7th（mM7）とは？',a:'マイナートライアドに長7度を加えた4和音（1・♭3・5・7）。暗さの中に鋭い緊張感が同居する独特の響き。ハーモニックマイナーキーのImコードとして現れる。映画音楽やホラー的な雰囲気に使われる。例：CmM7＝C・Eb・G・B。'},
+  {q:'m7♭5（ハーフディミニッシュ）とは？',a:'マイナー7thの5度を半音下げた4和音（1・♭3・♭5・♭7）。ジャズでII-V-Iの「II」として多用される。例：Bm7♭5＝B・D・F・A（CメジャーのVII）。不安定だがディミニッシュより柔らかい不協和。'},
+  {q:'dim7（ディミニッシュセブンス）とは？',a:'全ての音が短3度（3半音）で積み重なる4和音（1・♭3・♭5・♭♭7）。対称性があるため転位しても同じコードになる（Cdim7＝Ebdim7＝F#dim7＝Adim7）。パッシングコードやドミナント代理として使われる。'},
+  {q:'sus4 / sus2コードとは？',a:'sus4は3度を4度に置換（1・4・5）。sus2は3度を2度に置換（1・2・5）。どちらもメジャー/マイナーの色がなく浮遊感がある。sus4→解決の流れ（Gsus4→G）や、ペダルポイントとして長時間保持する使い方がある。'},
+  {q:'add9・add11コードとは？',a:'7thを加えずに9度や11度だけを加えたコード。例：Cadd9＝C・E・G・D。7thがないため開放的で軽い響き。M9やm9より素直な印象になる。ポップス・ロックで多用される。'},
+  {q:'分数コード（スラッシュコード）とは？',a:'「C/E」のように表記するコードで、分子がコード名、分母が最低音（ベース音）を指定する。例：C/E はCコードをEをベースに鳴らす第1転回形。ベースラインを滑らかに動かしたいときやポリコード的な響きを作るときに使う。'},
+  {q:'転回形とは？',a:'コードの最低音をルート以外にすること。第1転回形は3度がベース、第2転回形は5度がベース、第3転回形は7度がベース（7thコードのみ）。ベースラインを半音や全音で滑らかに動かすために活用する。'},
+  {q:'ポリコードとは？',a:'2つ以上の異なるコードを同時に重ねて鳴らすコード。例：FメジャーとCメジャーを同時に鳴らすとCsus2/add11的な複合コードになる。現代ジャズや映画音楽で複雑な色彩を作り出すために使われる。'},
+
+  // ===== テンション =====
+  {cat:'テンション・アボイド・ノンダイアトニック'},
+  {q:'テンションノートとは？',a:'コードトーン（1・3・5・7）に加えると色彩感が増す9度・11度・13度などの音。スケールの2・4・6度をオクターブ上に配置したもの。使えるテンションはコードの種類と機能（トニック/ドミナント/SD）によって決まる。'},
+  {q:'9th（ナインス）テンションとは？',a:'スケールの2度をオクターブ上に配置した音。ナチュラル9（♮9）・フラット9（♭9）・シャープ9（♯9）がある。♮9はほとんどのコードで使用可能。♭9・♯9はドミナント7thのオルタードテンションとして使われ緊張感を高める。'},
+  {q:'11th（イレブンス）テンションとは？',a:'スケールの4度をオクターブ上に配置した音。メジャーコード上のナチュラル11はアボイドになりやすいため、♯11が使われることが多い。マイナーコードやドミナントではナチュラル11が使える。'},
+  {q:'13th（サーティーンス）テンションとは？',a:'スケールの6度をオクターブ上に配置した音。ナチュラル13はドミナント7thやメジャー7thコードで有効なテンション。♭13はドミナント7thのオルタードテンションで、オーギュメント的な響きを加える。'},
+  {q:'アボイドノートとは？',a:'そのコード上で持続音として使うと不協和が強すぎる音。例：Imaj7コード上のF（4度/♮11）は長3度のEと半音で衝突するためアボイド。ただし通過音・アプローチノートとして瞬間的に使うのはOK。'},
+  {q:'オルタードテンションとは？',a:'ドミナント7thコード上で使える変化テンション4種（♭9・♯9・♯11・♭13）の総称。通常のテンションを半音変化させた音で最大限の緊張感を生む。オルタードスケール上の音に対応。解決時の爽快感が増す。'},
+  {q:'ノンダイアトニックコードとは？',a:'そのキーのスケール外の音を含むコード。セカンダリードミナント・借用和音・クロマティックアプローチなどが代表例。ダイアトニックだけでは出せない色彩や意外性を加える。'},
+  {q:'借用和音（モーダルインターチェンジ）とは？',a:'同主調（同じ主音の別のモード）からコードを借りてくること。例：CメジャーでCマイナー（エオリアン）のFm（IVm）やA♭（♭VI）を使う。暗さや劇的な色彩変化を演出できる。ビートルズやRadioheadなどロックでも頻繁に登場する。'},
+  {q:'クロマティックアプローチとは？',a:'目標コードへ半音上または半音下から滑り込む経過コードの技法。例：Dm7の直前にD♭7を置く。一瞬だけスケール外の音を使いスムーズな動きを作る。ジャズのコードリハーモナイゼーションで多用。'},
+
+  // ===== コード進行 =====
+  {cat:'コード進行'},
+  {q:'I-V-VI-IVとは？',a:'現代ポップスで最も多用されるコード進行。Cキーなら C→G→Am→F。明るく親しみやすく、循環させるだけで曲になる。世界中の楽曲で使われている。'},
+  {q:'II-V-Iとは？',a:'最も重要なコード進行。IIm7（サブドミナント）→V7（ドミナント）→Imaj7（トニック）の流れで強い解決感がある。CキーならDm7→G7→CM7。ジャズでは転調も含めてこれが軸になる。マイナーではIIm7♭5→V7→Imが対応形。'},
+  {q:'I-IV-V（スリーコード）とは？',a:'トニック・サブドミナント・ドミナントの3つだけで構成される最もシンプルな進行。Cキーなら C・F・G。12小節ブルースはこの3コードを特定のパターンで循環させる。シンプルだが力強く普遍的なサウンド。'},
+  {q:'カノン進行とは？',a:'パッヘルベルのカノンに由来。Cキーで C→G→Am→Em→F→C→F→G（I-V-VI-III-IV-I-IV-V）のベースライン下降が特徴。非常に自然な流れで多くのポップス・歌謡曲に使われている。'},
+  {q:'小室進行とは？',a:'VIm→IV→V→Iの進行（Cキーなら Am→F→G→C）。90年代に小室哲哉プロデュース楽曲で多用された。哀愁とドラマチックさが特徴。マイナーコードから始まる独特の緊張感がある。'},
+  {q:'王道進行とは？',a:'IV→V→IIIm→VImの進行（Cキーなら F→G→Em→Am）。日本のポップス・Jポップで特に多用される進行。サビで使われることが多くドラマチックな盛り上がりを作る。'},
+  {q:'循環進行とは？',a:'繰り返し使えるコード進行。代表的なのはI-VI-II-V（Cキー: C→Am→Dm→G）。これを繰り返すだけでジャズセッションが成立する。「リズムチェンジ」はジャズスタンダードの定番。'},
+  {q:'12小節ブルース進行とは？',a:'I-I-I-I / IV-IV-I-I / V-IV-I-Vの12小節サイクル。ブルース・ロック・ジャズの基盤。7thコードを使うのが基本で、ターンアラウンドにII-V-Iを入れるなど多くのバリエーションがある。'},
+  {q:'ターンアラウンドとは？',a:'楽節の最後にトニックから次のセクションの頭へ戻るための短い進行。代表例：I-VI-II-V（Cキー: C→Am→Dm→G）。最後のV7が次のIへ向かう推進力になる。ブルースやジャズで頻繁に使われる。'},
+  {q:'リハーモナイゼーションとは？',a:'既存のコード進行を別のコードに置き換えて新しい色彩を加える技法。トライトーン代理・借用和音・クロマティックアプローチなどを活用する。メロディーはそのままにハーモニーを変えることで同じ曲が別の表情になる。ジャズアレンジで多用。'},
+  {q:'ペダルポイントとは？',a:'ベース音を一定の音で保持したまま上声部のコードが変化する技法。例：C音を保持したままF→G→Am→Cと変化させる。静的な安定感の中に動きを演出できる。ロック・クラシック・ジャズで使われる。'},
+  {q:'転調とは？',a:'曲の途中でキーが変わること。近親転調（五度圏の隣のキー）は自然。半音上転調はドラマチックな盛り上がりを生む。ピボットコード転調・直接転調・半音転調など手法はさまざま。'},
+  {q:'ピボットコード転調とは？',a:'2つのキーに共通するコードを軸（ピボット）として転調する方法。例：CメジャーとGメジャーに共通するEmを使って転調。聴き手に違和感を与えず自然に転調できる。近親調間で特に有効。'},
+  {q:'バックサイクル（逆五度進行）とは？',a:'完全5度下（または完全4度上）に次々とコードが進む進行。II-V-IはそのままバックサイクルのDm→G→C。ジャズでは長いバックサイクル（Em→Am→Dm→G→C）を使って遠いキーからスムーズに戻ってくる技法が多用される。'},
+  {q:'コードスケールとは？',a:'あるコード上でどのスケールを使うかの対応関係。例：Dm7→ドリアン、G7→ミクソリディアン（またはオルタード）、Cmaj7→イオニアン（またはリディアン）。コードスケール理論はジャズ即興の基礎で、各コードに合ったスケールを割り当てることでフレーズの音使いが決まる。'},
+
+  // ===== 五度圏・キー =====
+  {cat:'五度圏・キー'},
+  {q:'五度圏とは？',a:'12のキーを完全5度ずつずらして円形に並べた図。隣り合うキーほど共通音が多く音が似ており、転調やコード選択を考えるときに便利。外周=メジャー、中リング=相対マイナー、内リング=そのキーのdimコード。'},
+  {q:'完全5度とは？',a:'7半音の音程。CからGが完全5度。非常に安定した響きで、ルートと5度の2音を重ねるだけでパワーコードになる。五度圏はこの完全5度の関係で12キーを並べたもの。'},
+  {q:'相対調とは？',a:'同じ音を使うメジャーキーとマイナーキーのペア。例：CメジャーとAマイナーは使う音が全く同じ（C D E F G A B）。主音が異なるため雰囲気は全く違う。五度圏の外周と中リングが対応。'},
+  {q:'同主調とは？',a:'同じ主音を持つメジャーとマイナーのペア。例：Cメジャー（CDEFGAB）とCマイナー（CDEbFGAbBb）は主音は同じCだが使う音が異なる。転調の手法としてよく使われる。'},
+  {q:'調号（シャープ・フラット）とは？',a:'楽譜の最初に書かれる♯や♭の記号で、そのキーを示す。五度圏を時計回りに進むごとに♯が1つ増え（G=1♯, D=2♯…）、反時計回りに進むごとに♭が1つ増える（F=1♭, Bb=2♭…）。'},
+  {q:'エンハーモニックとは？',a:'音の高さが同じだが名前が異なる音や調のこと。例：C#とDb、F#とGb、G#とAb。五度圏の右端と左端付近でこの関係が現れる。'},
+
+];
+function buildGlossary(){
+  document.getElementById('g-body').innerHTML=GLOSSARY.map((item,i)=>{
+    if(item.cat)return`<div class="g-cat">${item.cat}</div>`;
+    return`<div class="g-item"><div class="g-q" onclick="toggleG(${i})" id="gq${i}"><span>${item.q}</span><span class="g-chev">▼</span></div><div class="g-ans" id="ga${i}">${item.a}</div></div>`;
+  }).join('');
+}
+function toggleG(i){document.getElementById('gq'+i).classList.toggle('open');document.getElementById('ga'+i).classList.toggle('open')}
+function toggleGlossary(){
+  const d=document.getElementById('g-drawer'),o=document.getElementById('g-overlay'),h=document.getElementById('hamburger');
+  const open=d.classList.toggle('open');o.classList.toggle('open',open);h.classList.toggle('open',open);
+}
+
+// ===== Music Theory =====
+const NOTES=['C','C#','D','D#','E','F','F#','G','G#','A','A#','B'];
+const COF_KEYS=['C','G','D','A','E','B','F#','C#','Ab','Eb','Bb','F'];
+const COF_MINOR=['Am','Em','Bm','F#m','C#m','G#m','Ebm','Bbm','Fm','Cm','Gm','Dm'];
+const COF_MINOR_ROOT=['A','E','B','F#','C#','G#','Eb','Bb','F','C','G','D'];
+const COF_DIM=['Bdim','F#dim','C#dim','G#dim','D#dim','A#dim','Fdim','Cdim','Abdim','Ebdim','Bbdim','Edim'];
+
+function ni(n){n=n.replace('Db','C#').replace('Eb','D#').replace('Gb','F#').replace('Ab','G#').replace('Bb','A#');return NOTES.indexOf(n)}
+function noteAt(root,s){return NOTES[(ni(root)+s+120)%12]}
+
+const MAJ_INT=[0,2,4,5,7,9,11],MIN_INT=[0,2,3,5,7,8,10];
+const MAJ_TYPES=['maj','min','min','maj','maj','min','dim'],MAJ_TYPES7=['maj7','min7','min7','maj7','7','min7','m7b5'];
+const MAJ_ROMAN=['I','II','III','IV','V','VI','VII'],MAJ_ROLES=['T','SD','T','SD','D','T','D'];
+const MIN_TYPES=['min','dim','maj','min','min','maj','maj'],MIN_TYPES7=['min7','m7b5','maj7','min7','min7','maj7','7'];
+const MIN_ROMAN=['i','ii°','III','iv','v','VI','VII'],MIN_ROLES=['T','D','T','SD','D','T','SD'];
+const CHORD_SHAPES={maj:[0,4,7],min:[0,3,7],dim:[0,3,6],aug:[0,4,8],maj7:[0,4,7,11],min7:[0,3,7,10],'7':[0,4,7,10],m7b5:[0,3,6,10]};
+
+function getChordNotes(root,type){return(CHORD_SHAPES[type]||[0,4,7]).map(s=>noteAt(root,s))}
+function fmtChord(root,type){const m={maj:'',min:'m',dim:'dim',aug:'aug',maj7:'M7',min7:'m7','7':'7',m7b5:'m7♭5'};return root+(m[type]!==undefined?m[type]:type)}
+function getTensions(type,degree,minor){
+  let t=[],av=[],alt=[];
+  if(type==='maj7'){t=[2,9];av=degree===0?[5]:[];if(degree!==0)t.push(6)}
+  else if(type==='min7'){t=[2,5,9];if(degree===4&&!minor)av=[9]}
+  else if(type==='7'){t=[2,9];alt=[1,3,6,8]}
+  else if(type==='maj'){t=[2,9];av=[5]}
+  else if(type==='min'){t=[2,5,9]}
+  else if(type==='m7b5'){t=[2,5];av=[9]}
+  else if(type==='dim'){t=[2,5]}
+  return{tensions:t,avoid:av,altTensions:alt}
+}
+function tname(s){return{1:'♭9',2:'9',3:'♯9',5:'11',6:'♯11',8:'♭13',9:'13',11:'maj7'}[s]||''}
+
+let selectedKey='C',isMinor=false,show7th=false,selectedChordIdx=null,fretboardOpen=false,audioCtx=null;
+
+// ===== CoF =====
+function drawCoF(){
+  const svg=document.getElementById('cof-svg');
+  const cx=195,cy=195,Ro=185,Rm=128,Ri=72,Rc=40;
+  let h='';
+  COF_KEYS.forEach((key,i)=>{
+    const ang=(i*30-90)*Math.PI/180;
+    const a1=((i-.5)*30-90)*Math.PI/180,a2=((i+.5)*30-90)*Math.PI/180;
+    const c1=Math.cos(a1),s1=Math.sin(a1),c2=Math.cos(a2),s2=Math.sin(a2);
+    const mRoot=COF_MINOR_ROOT[i];
+    const isMaj=!isMinor&&(key===selectedKey||(key==='C#'&&selectedKey==='Db')||(key==='Ab'&&selectedKey==='G#'));
+    const isMin=isMinor&&selectedKey===mRoot;
+    // Outer Major
+    h+=`<path d="M${cx+Ro*c1},${cy+Ro*s1}A${Ro},${Ro},0,0,1,${cx+Ro*c2},${cy+Ro*s2}L${cx+Rm*c2},${cy+Rm*s2}A${Rm},${Rm},0,0,0,${cx+Rm*c1},${cy+Rm*s1}Z" fill="${isMaj?'#1a1c2e':'#f8f9fc'}" stroke="${isMaj?'#1a1c2e':'#e2e4ed'}" stroke-width="1" style="cursor:pointer;transition:fill .15s" onclick="selectKey('${key}')"/>`;
+    h+=`<text x="${cx+(Ro+Rm)/2*Math.cos(ang)}" y="${cy+(Ro+Rm)/2*Math.sin(ang)}" text-anchor="middle" dominant-baseline="central" font-size="13" font-weight="${isMaj?600:400}" fill="${isMaj?'#fff':'#1a1c2e'}" pointer-events="none" font-family="Space Grotesk,sans-serif">${key}</text>`;
+    // Middle Minor
+    h+=`<path d="M${cx+Rm*c1},${cy+Rm*s1}A${Rm},${Rm},0,0,1,${cx+Rm*c2},${cy+Rm*s2}L${cx+Ri*c2},${cy+Ri*s2}A${Ri},${Ri},0,0,0,${cx+Ri*c1},${cy+Ri*s1}Z" fill="${isMin?'#1e7fd4':'#eef4fb'}" stroke="${isMin?'#1e7fd4':'#d8e8f8'}" stroke-width="1" style="cursor:pointer" onclick="selectMinorKey('${key}')"/>`;
+    h+=`<text x="${cx+(Rm+Ri)/2*Math.cos(ang)}" y="${cy+(Rm+Ri)/2*Math.sin(ang)}" text-anchor="middle" dominant-baseline="central" font-size="10" fill="${isMin?'#fff':'#1e7fd4'}" pointer-events="none" font-family="Space Grotesk,sans-serif">${COF_MINOR[i]}</text>`;
+    // Inner dim (表示のみ・ハイライトなし)
+    h+=`<path d="M${cx+Ri*c1},${cy+Ri*s1}A${Ri},${Ri},0,0,1,${cx+Ri*c2},${cy+Ri*s2}L${cx+Rc*c2},${cy+Rc*s2}A${Rc},${Rc},0,0,0,${cx+Rc*c1},${cy+Rc*s1}Z" fill="#fdf0f8" stroke="#f0dcea" stroke-width="1" pointer-events="none"/>`;
+    h+=`<text x="${cx+(Ri+Rc)/2*Math.cos(ang)}" y="${cy+(Ri+Rc)/2*Math.sin(ang)}" text-anchor="middle" dominant-baseline="central" font-size="8.5" fill="#b83880" pointer-events="none" font-family="Space Grotesk,sans-serif">${COF_DIM[i].replace('dim','°')}</text>`;
+  });
+  h+=`<circle cx="${cx}" cy="${cy}" r="${Rc}" fill="#fff" stroke="#e2e4ed" stroke-width="1"/>`;
+  h+=`<text x="${cx}" y="${cy-6}" text-anchor="middle" font-size="11" fill="#b0b4c8" font-family="Noto Sans JP,sans-serif">五度圏</text>`;
+  h+=`<text x="${cx}" y="${cy+8}" text-anchor="middle" font-size="9" fill="#d0d3e0" font-family="Noto Sans JP,sans-serif">クリックで選択</text>`;
+  svg.innerHTML=h;
+}
+function selectKey(k){selectedKey=k;isMinor=false;selectedChordIdx=null;drawCoF();renderDiatonic();clearFretTab()}
+function selectMinorKey(majorKey){
+  const i=COF_KEYS.indexOf(majorKey);selectedKey=i>=0?COF_MINOR_ROOT[i]:majorKey;
+  isMinor=true;selectedChordIdx=null;drawCoF();renderDiatonic();clearFretTab();
+}
+function toggleSeventh(){
+  show7th=!show7th;document.getElementById('seventh-toggle').classList.toggle('on',show7th);
+  renderDiatonic();
+  if(selectedChordIdx!==null){const ch=getDiatonicChords();renderNotesPanel(ch[selectedChordIdx]);renderFretboard(ch[selectedChordIdx])}
+}
+
+function getDiatonicChords(){
+  const ints=isMinor?MIN_INT:MAJ_INT;
+  const types=show7th?(isMinor?MIN_TYPES7:MAJ_TYPES7):(isMinor?MIN_TYPES:MAJ_TYPES);
+  return (isMinor?MIN_INT:MAJ_INT).map((s,i)=>{
+    const root=noteAt(selectedKey,ints[i]),type=types[i];
+    return{root,type,roman:(isMinor?MIN_ROMAN:MAJ_ROMAN)[i],role:(isMinor?MIN_ROLES:MAJ_ROLES)[i],notes:getChordNotes(root,type),degree:i};
+  });
+}
+
+function renderDiatonic(){
+  const ch=getDiatonicChords();
+  const kl=document.getElementById('key-label');
+  kl.innerHTML=`<span>${selectedKey}</span>${isMinor?'マイナー':'メジャー'}キー`;
+  const rmap={T:'tonic',D:'dominant',SD:'subdominant',SD2:'secondary'};
+  const rtxt={T:'T',D:'D',SD:'SD',SD2:'SecD'};
+  document.getElementById('chord-grid').innerHTML=ch.map((c,i)=>{
+    const cls=rmap[c.role]||'subdominant',act=selectedChordIdx===i?' active':'';
+    return`<div class="chord-btn ${cls}${act}" onclick="selectChord(${i})">
+      <div class="chord-name">${fmtChord(c.root,c.type)}</div>
+      <div class="chord-roman">${c.roman}</div>
+      <div class="chord-role-tag role-${c.role}">${rtxt[c.role]}</div>
+    </div>`;
+  }).join('');
+}
+
+function renderNotesPanel(chord){
+  const scaleNotes=(isMinor?MIN_INT:MAJ_INT).map(s=>noteAt(selectedKey,s));
+  const chordIdxSet=new Set(chord.notes.map(n=>ni(n)).filter(x=>x>=0));
+  const rootIdx=ni(chord.root);
+  const td=getTensions(chord.type,chord.degree,isMinor);
+  const tSet=new Set(td.tensions),avSet=new Set(td.avoid);
+  const scaleRow=scaleNotes.map(n=>{
+    const idx=ni(n),sem=(idx-rootIdx+12)%12;
+    let cls='';
+    if(idx===rootIdx)cls='root';
+    else if(chordIdxSet.has(idx))cls=(sem===10||sem===11)?'seventh':'chord-tone';
+    else if(avSet.has(sem))cls='avoid';
+    else if(tSet.has(sem))cls='tension';
+    return`<span class="note-pill ${cls}">${n}</span>`;
+  }).join('');
+  const tensRow=td.tensions.map(s=>`<span class="note-pill tension">${noteAt(chord.root,s)}<sub style="font-size:9px;margin-left:1px">(${tname(s)})</sub></span>`).join('');
+  const altRow=td.altTensions.length?`<div class="notes-row"><span class="notes-row-label" style="color:var(--secondary)">オルタード</span><div class="notes-pills">${td.altTensions.map(s=>`<span class="note-pill tension">${noteAt(chord.root,s)}<sub style="font-size:9px;margin-left:1px">(${tname(s)})</sub></span>`).join('')}</div></div>`:'';
+  const avRow=td.avoid.length?`<div class="notes-row"><span class="notes-row-label" style="color:#c04040">アボイド</span><div class="notes-pills">${td.avoid.map(s=>`<span class="note-pill avoid">${noteAt(chord.root,s)}</span>`).join('')}</div></div>`:'';
+  document.getElementById('notes-content').innerHTML=`<div class="notes-section">
+    <div class="notes-row"><span class="notes-row-label">スケール音</span><div class="notes-pills">${scaleRow}</div></div>
+    ${tensRow?`<div class="notes-row"><span class="notes-row-label">テンション</span><div class="notes-pills">${tensRow}</div></div>`:''}
+    ${altRow}${avRow}
+  </div>`;
+  document.getElementById('tension-legend').style.display='flex';
+}
+
+// ===== Fretboard (24f, floating) =====
+const STR_OPEN=[4,11,7,2,9,4]; // 1弦(e)→6弦(E)
+const STR_LABELS=['1(e)','2(B)','3(G)','4(D)','5(A)','6(E)'];
+const FRET_COUNT=24;
+// フレット幅: リアルなギターに近い比率（各フレットは前の約94.4%）
+function getFretX(frets, f, startX){
+  // 簡易等間隔でも十分見やすいので等幅にする
+  return startX + f * frets;
+}
+
+function getFretPositions(chord){
+  const rootNi=ni(chord.root);
+  const nset=new Set(chord.notes.map(n=>ni(n)).filter(x=>x>=0));
+  return STR_OPEN.map(open=>{
+    for(let f=0;f<=4;f++){const idx=(open+f)%12;if(nset.has(idx))return{fret:f,note:NOTES[idx],isRoot:idx===rootNi}}
+    for(let f=5;f<=9;f++){const idx=(open+f)%12;if(nset.has(idx))return{fret:f,note:NOTES[idx],isRoot:idx===rootNi}}
+    return null;
+  });
+}
+
+function renderFretboard(chord){
+  const FW=38; // フレット幅
+  const pL=46,pT=16,sGap=22,nStr=6;
+  const totalW=pL+FRET_COUNT*FW+10;
+  const totalH=pT+(nStr-1)*sGap+10;
+  const noteSet=new Set(chord.notes.map(n=>ni(n)).filter(x=>x>=0));
+  const rootNi=ni(chord.root);
+  const positions=getFretPositions(chord);
+  const td=getTensions(chord.type,chord.degree,isMinor);
+  const tensIdxSet=new Set([...td.tensions,...(td.altTensions||[])].map(s=>(ni(chord.root)+s+120)%12));
+  const allSet=new Set([...noteSet,...tensIdxSet]);
+  let h='';
+
+  // Fret lines
+  for(let f=0;f<=FRET_COUNT;f++){
+    const x=pL+f*FW;
+    h+=`<line x1="${x}" y1="${pT}" x2="${x}" y2="${pT+(nStr-1)*sGap}" stroke="${f===0?'#9aa0bc':'#dde0ea'}" stroke-width="${f===0?2.5:.6}"/>`;
+  }
+  // Strings
+  for(let s=0;s<nStr;s++){
+    const y=pT+s*sGap,sw=(0.5+s*0.18).toFixed(2);
+    h+=`<line x1="${pL}" y1="${y}" x2="${pL+FRET_COUNT*FW}" y2="${y}" stroke="#c8cad8" stroke-width="${sw}"/>`;
+    h+=`<text x="${pL-4}" y="${y}" text-anchor="end" dominant-baseline="central" font-size="9" fill="#a0a4bc" font-family="Space Grotesk,sans-serif">${STR_LABELS[s]}</text>`;
+  }
+  // Fret numbers
+  for(let f=1;f<=FRET_COUNT;f++){
+    const x=pL+(f-.5)*FW;
+    h+=`<text x="${x}" y="${pT+(nStr-1)*sGap+12}" text-anchor="middle" font-size="8.5" fill="#c0c4d4" font-family="Space Grotesk,sans-serif">${f}</text>`;
+  }
+  // Position markers
+  [3,5,7,9,12,15,17,19,21,24].forEach(f=>{
+    if(f>FRET_COUNT)return;
+    const x=pL+(f-.5)*FW,y=pT+(nStr-1)/2*sGap;
+    if(f===12||f===24){h+=`<circle cx="${x-4}" cy="${y}" r="2.5" fill="rgba(0,0,0,.06)"/><circle cx="${x+4}" cy="${y}" r="2.5" fill="rgba(0,0,0,.06)"/>`;
+    }else{h+=`<circle cx="${x}" cy="${y}" r="2.5" fill="rgba(0,0,0,.06)"/>`;}
+  });
+  // アウトライン dots（コードトーン＋テンション全ポジション）
+  for(let s=0;s<nStr;s++){
+    for(let f=0;f<=FRET_COUNT;f++){
+      const idx=(STR_OPEN[s]+f)%12;
+      if(!allSet.has(idx))continue;
+      const hasMain=positions[s]&&positions[s].fret===f;
+      if(hasMain)continue;
+      const x=f===0?pL-16:pL+(f-.5)*FW,y=pT+s*sGap;
+      const isTens=tensIdxSet.has(idx)&&!noteSet.has(idx);
+      if(isTens){
+        const d=4.5;
+        h+=`<polygon points="${x},${y-d} ${x+d},${y} ${x},${y+d} ${x-d},${y}" fill="rgba(184,56,128,.1)" stroke="rgba(184,56,128,.55)" stroke-width="1"/>`;
+      }else{
+        h+=`<circle cx="${x}" cy="${y}" r="5.5" fill="none" stroke="${idx===rootNi?'rgba(13,158,110,.5)':'rgba(30,127,212,.4)'}" stroke-width="1.2"/>`;
+      }
+    }
+  }
+  // メインドット
+  positions.forEach((pos,s)=>{
+    if(!pos)return;
+    const x=pos.fret===0?pL-16:pL+(pos.fret-.5)*FW,y=pT+s*sGap;
+    h+=`<circle cx="${x}" cy="${y}" r="8" fill="${pos.isRoot?'#0d9e6e':'#1e7fd4'}"/>`;
+    h+=`<text x="${x}" y="${y}" text-anchor="middle" dominant-baseline="central" font-size="8.5" font-weight="600" fill="#fff" font-family="Space Grotesk,sans-serif">${pos.note}</text>`;
+  });
+
+  const svg=document.getElementById('fret-svg');
+  svg.setAttribute('width',totalW);svg.setAttribute('height',totalH);
+  svg.setAttribute('viewBox',`0 0 ${totalW} ${totalH}`);
+  svg.innerHTML=h;
+
+  // タブ更新
+  const roleColors={T:'var(--tonic)',D:'var(--dominant)',SD:'var(--subdominant)',SD2:'var(--secondary)'};
+  const roleBg={T:'var(--tonic-bg)',D:'var(--dominant-bg)',SD:'var(--subdominant-bg)',SD2:'var(--secondary-bg)'};
+  const roleTxt={T:'トニック',D:'ドミナント',SD:'サブドミナント',SD2:'SecD'};
+  document.getElementById('fret-tab-label').textContent=fmtChord(chord.root,chord.type);
+  document.getElementById('fret-tab-notes').innerHTML=chord.notes.map(n=>`<span class="note-pill chord-tone" style="font-size:10px;padding:1px 7px">${n}</span>`).join('');
+  document.getElementById('fret-top-row').innerHTML=
+    `<span class="fret-chord-name">${fmtChord(chord.root,chord.type)}</span>
+     <span class="fret-fn-badge" style="border-color:${roleColors[chord.role]};background:${roleBg[chord.role]};color:${roleColors[chord.role]}">${roleTxt[chord.role]}</span>
+     ${chord.notes.map(n=>`<span class="note-pill chord-tone" style="font-size:11px">${n}</span>`).join('')}
+     <button class="play-btn" onclick="playChordAudio('${chord.root}','${chord.type}')">▶ 再生</button>`;
+}
+
+function clearFretTab(){
+  document.getElementById('fret-tab-label').textContent='指板';
+  document.getElementById('fret-tab-notes').innerHTML='';
+  document.getElementById('fret-top-row').innerHTML='<span style="color:var(--text3);font-size:12px">コードを選択してください</span>';
+  document.getElementById('fret-svg').innerHTML='';
+}
+
+function selectChord(idx){
+  selectedChordIdx=idx;
+  const ch=getDiatonicChords();
+  renderDiatonic();renderNotesPanel(ch[idx]);renderFretboard(ch[idx]);
+  if(!fretboardOpen)toggleFretboard();
+  playChordAudio(ch[idx].root,ch[idx].type);
+}
+
+function toggleFretboard(){
+  fretboardOpen=!fretboardOpen;
+  document.getElementById('fret-panel').classList.toggle('open',fretboardOpen);
+}
+
+// ===== Audio =====
+function getCtx(){if(!audioCtx)audioCtx=new(window.AudioContext||window.webkitAudioContext)();return audioCtx}
+function freq(n,oct=4){const idx=ni(n);if(idx<0)return 261.63;return 440*Math.pow(2,(idx-9+(oct-4)*12)/12)}
+function tone(f,t,dur,ctx,g){
+  const o=ctx.createOscillator(),gn=ctx.createGain();
+  o.type='triangle';o.frequency.value=f;
+  gn.gain.setValueAtTime(0,t);gn.gain.linearRampToValueAtTime(.13,t+.02);gn.gain.exponentialRampToValueAtTime(.001,t+dur);
+  o.connect(gn);gn.connect(g);o.start(t);o.stop(t+dur+.1);
+}
+function playChordAudio(root,type){
+  try{
+    const ctx=getCtx(),m=ctx.createGain();m.gain.value=.7;m.connect(ctx.destination);
+    const notes=getChordNotes(root,type),now=ctx.currentTime;
+    notes.forEach((n,i)=>tone(freq(n,i===0?3:4),now+i*.05,1.3,ctx,m));
+  }catch(e){}
+}
+
+
+// ===== Game =====
+function openGame(){ document.getElementById('gm-overlay').classList.add('open') }
+function closeGame(){
+  document.getElementById('gm-overlay').classList.remove('open');
+  stopFretQuiz(); stopChordGame();
+}
+function handleGameOverlayClick(e){ if(e.target===document.getElementById('gm-overlay'))closeGame() }
+function switchGameTab(tab){
+  ['fret','chord'].forEach(t=>{
+    document.getElementById('tab-'+t).classList.toggle('active',t===tab);
+    document.getElementById('sec-'+t).classList.toggle('active',t===tab);
+  });
+  if(tab==='fret') stopChordGame();
+  else stopFretQuiz();
+}
+
+// ===== 指板クイズ =====
+let fqTimer=null, fqBarTimer=null;
+const STRING_NAMES_FULL=['6弦','5弦','4弦','3弦','2弦','1弦'];
+
+function randomFretQuestion(){
+  const maxFret=parseInt(document.getElementById('fq-maxfret').value);
+  const strIdx=Math.floor(Math.random()*6); // 0=6弦...5=1弦
+  const fret=Math.floor(Math.random()*maxFret)+1;
+  // strIdx0=6弦=open:E(4), strIdx5=1弦=open:e(4)
+  // STR_OPEN is [e,B,G,D,A,E] index 0=1弦... we need [E,A,D,G,B,e] for string display
+  // strIdx0 = 6弦 = STR_OPEN[5]=4(E)
+  const openNotes=[4,9,2,7,11,4]; // 6弦→1弦
+  const noteIdx=(openNotes[strIdx]+fret)%12;
+  const noteName=NOTES[noteIdx];
+  return{str:strIdx,fret,note:noteName};
+}
+
+function fqShowQuestion(){
+  const q=randomFretQuestion();
+  const mainEl=document.getElementById('fq-main');
+  const subEl=document.getElementById('fq-sub');
+  mainEl.classList.add('flash');
+  setTimeout(()=>{
+    mainEl.textContent=`${STRING_NAMES_FULL[q.str]} ${q.fret}f`;
+    mainEl.style.fontSize=q.str<=1?'34px':'38px';
+    subEl.textContent='答えを確認してください';
+    mainEl.classList.remove('flash');
+  },80);
+  // progress bar
+  const speed=parseInt(document.getElementById('fq-speed').value)*1000;
+  const bar=document.getElementById('fq-bar');
+  bar.style.transition='none'; bar.style.width='100%';
+  setTimeout(()=>{ bar.style.transition=`width ${speed}ms linear`; bar.style.width='0%'; },30);
+}
+
+function toggleFretQuiz(){
+  if(fqTimer){ stopFretQuiz(); return; }
+  const btn=document.getElementById('fq-btn');
+  btn.textContent='■ ストップ'; btn.classList.add('running');
+  fqShowQuestion();
+  const speed=()=>parseInt(document.getElementById('fq-speed').value)*1000;
+  fqTimer=setInterval(()=>fqShowQuestion(), speed());
+  // Re-schedule on speed change
+  document.getElementById('fq-speed').oninput=function(){
+    document.getElementById('fq-speed-val').textContent=this.value+'秒';
+    if(fqTimer){ clearInterval(fqTimer); fqTimer=setInterval(()=>fqShowQuestion(),parseInt(this.value)*1000); }
+  };
+}
+function stopFretQuiz(){
+  if(fqTimer){ clearInterval(fqTimer); fqTimer=null; }
+  const btn=document.getElementById('fq-btn');
+  btn.textContent='▶ スタート'; btn.classList.remove('running');
+  document.getElementById('fq-main').textContent='—';
+  document.getElementById('fq-sub').textContent='スタートを押してください';
+  document.getElementById('fq-bar').style.width='0%';
+}
+
+// ===== コード読みゲーム =====
+let cgTimer=null, cgMode='note';
+const CG_TYPES_TRIAD=['','m','dim','aug'];
+const CG_TYPES_7TH=['M7','m7','7','m7b5','dim7','aug'];
+const CHORD_DISPLAY={'':'','m':'m','dim':'dim','aug':'aug','M7':'M7','m7':'m7','7':'7','m7b5':'m7♭5','dim7':'dim7'};
+
+function toggleCgMode(m){
+  cgMode=m;
+  ['note','triad','7th','mix'].forEach(k=>document.getElementById('cgm-'+k).classList.toggle('on',k===m));
+}
+
+function randomChordQuestion(){
+  const root=NOTES[Math.floor(Math.random()*12)];
+  if(cgMode==='note') return{main:root,sub:''};
+  if(cgMode==='triad'){
+    const t=CG_TYPES_TRIAD[Math.floor(Math.random()*CG_TYPES_TRIAD.length)];
+    return{main:root+(CHORD_DISPLAY[t]||t),sub:''};
+  }
+  if(cgMode==='7th'){
+    const t=CG_TYPES_7TH[Math.floor(Math.random()*CG_TYPES_7TH.length)];
+    return{main:root+(CHORD_DISPLAY[t]||t),sub:''};
+  }
+  // mix: トライアド＋7th全部ごちゃまぜ
+  const allTypes=[...CG_TYPES_TRIAD,...CG_TYPES_7TH];
+  const t=allTypes[Math.floor(Math.random()*allTypes.length)];
+  return{main:root+(CHORD_DISPLAY[t]||t),sub:''};
+}
+
+function cgUpdateBpm(v){
+  document.getElementById('cg-bpm-val').textContent=v;
+  if(cgTimer){ clearInterval(cgTimer); cgTimer=setInterval(()=>cgShowQuestion(),60000/parseInt(v)); }
+}
+let cgCount=0;
+function cgShowQuestion(){
+  cgCount++;
+  const q=randomChordQuestion();
+  const mainEl=document.getElementById('cg-main');
+  const subEl=document.getElementById('cg-sub');
+  mainEl.classList.add('flash');
+  setTimeout(()=>{
+    mainEl.textContent=q.main;
+    const len=q.main.length;
+    mainEl.style.fontSize=len<=2?'56px':len<=3?'52px':len<=5?'40px':'32px';
+    subEl.textContent='#'+cgCount;
+    mainEl.classList.remove('flash');
+  },55);
+  const bpm=parseInt(document.getElementById('cg-bpm').value);
+  const dur=60000/bpm;
+  const bar=document.getElementById('cg-bar');
+  bar.style.transition='none'; bar.style.width='100%';
+  setTimeout(()=>{ bar.style.transition=`width ${dur}ms linear`; bar.style.width='0%'; },20);
+}
+
+function toggleChordGame(){
+  if(cgTimer){ stopChordGame(); return; }
+  cgCount=0;
+  const btn=document.getElementById('cg-btn');
+  btn.textContent='■ ストップ'; btn.classList.add('running');
+  cgShowQuestion();
+  const bpm=parseInt(document.getElementById('cg-bpm').value);
+  cgTimer=setInterval(()=>cgShowQuestion(), 60000/bpm);
+}
+function stopChordGame(){
+  if(cgTimer){ clearInterval(cgTimer); cgTimer=null; }
+  const btn=document.getElementById('cg-btn');
+  btn.textContent='▶ スタート'; btn.classList.remove('running');
+  document.getElementById('cg-main').textContent='—';
+  document.getElementById('cg-sub').textContent='スタートを押してください';
+  cgCount=0;
+  document.getElementById('cg-bar').style.width='0%';
+}
+
+buildGlossary();drawCoF();renderDiatonic();
+</script>
+</body>
+</html>
