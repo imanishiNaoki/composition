@@ -207,7 +207,7 @@ body{padding:0 0 var(--fret-h)} /* 指板分のスペース確保 */
 .gm-toggle-btn:hover{border-color:var(--subdominant-border);color:var(--subdominant)}
 .gm-toggle-btn.on{background:var(--subdominant-bg);border-color:var(--subdominant-border);color:var(--subdominant)}
 .gm-display{background:var(--bg3);border-radius:14px;padding:28px 20px;text-align:center;min-height:130px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:8px}
-.gm-display-main{font-family:'Space Grotesk',sans-serif;font-size:52px;font-weight:600;color:var(--text);line-height:1;transition:opacity .08s}
+.gm-display-main{font-family:'Noto Sans JP',sans-serif;font-size:48px;font-weight:600;color:var(--text);line-height:1.3;transition:opacity .08s}
 .gm-display-main.flash{opacity:0}
 .gm-display-sub{font-size:14px;color:var(--text2);font-family:'Space Grotesk',sans-serif;font-weight:500}
 .gm-progress-track{width:100%;height:3px;background:var(--border);border-radius:2px;overflow:hidden}
@@ -215,6 +215,8 @@ body{padding:0 0 var(--fret-h)} /* 指板分のスペース確保 */
 .gm-start{width:100%;padding:11px;border-radius:var(--r);border:none;background:var(--subdominant);color:#fff;font-size:14px;font-weight:600;font-family:'Noto Sans JP',sans-serif;cursor:pointer;transition:all .15s}
 .gm-start:hover{filter:brightness(1.1)}
 .gm-start.running{background:var(--bg3);color:#c04040;border:1px solid #f0b0b0}
+.fq-mini-fret-wrap{background:var(--bg3);border-radius:10px;padding:10px 12px}
+.fq-mini-fret-wrap svg{display:block;width:100%;height:auto}
 
 </style>
 </head>
@@ -270,6 +272,9 @@ body{padding:0 0 var(--fret-h)} /* 指板分のスペース確保 */
         <div class="gm-display" id="fq-display">
           <div class="gm-display-main" id="fq-main">—</div>
           <div class="gm-display-sub" id="fq-sub">スタートを押してください</div>
+        </div>
+        <div class="fq-mini-fret-wrap">
+          <svg id="fq-mini-fret" width="100%" viewBox="0 0 600 138" preserveAspectRatio="xMidYMid meet"></svg>
         </div>
         <div class="gm-progress-track"><div class="gm-progress-bar" id="fq-bar" style="width:0%"></div></div>
         <button class="gm-start" id="fq-btn" onclick="toggleFretQuiz()">▶ スタート</button>
@@ -780,44 +785,128 @@ function randomFretQuestion(){
   return{str:strIdx,fret,note:noteName};
 }
 
+let fqCurrentNote=null; // 現在出題中の正解音名
+const FQ_ANSWER_SHOW_MS=2000; // 正解表示の固定時間（2秒）
+
+// ミニ指板描画：出題された弦×フレットの位置だけハイライト（答えは隠す）
+// viewBoxの全体幅を固定し、CSSのwidth:100%で常にコンテナに自動フィットさせる（スクロールなし）
+function drawMiniFretboard(strIdx, fret, revealAnswer){
+  const svg=document.getElementById('fq-mini-fret');
+  const maxFret=parseInt(document.getElementById('fq-maxfret').value);
+  const visibleFrets=Math.max(maxFret,12); // 見やすさのため最低12フレット分は描画
+  const pL=34,pR=10,pT=16,sGap=20,nStr=6;
+  const totalW=600; // 固定viewBox幅（CSSでコンテナ幅に自動スケール）
+  const FW=(totalW-pL-pR)/visibleFrets;
+  const totalH=pT+(nStr-1)*sGap+22;
+  svg.setAttribute('viewBox',`0 0 ${totalW} ${totalH}`);
+
+  let h='';
+  // フレットライン
+  for(let f=0;f<=visibleFrets;f++){
+    const x=pL+f*FW;
+    h+=`<line x1="${x}" y1="${pT}" x2="${x}" y2="${pT+(nStr-1)*sGap}" stroke="${f===0?'#7a80a0':'#c8cce0'}" stroke-width="${f===0?3:.7}"/>`;
+  }
+  // 弦ライン（0=6弦…5=1弦）
+  for(let s=0;s<nStr;s++){
+    const y=pT+s*sGap, sw=(0.6+(nStr-1-s)*0.22).toFixed(2);
+    h+=`<line x1="${pL}" y1="${y}" x2="${pL+visibleFrets*FW}" y2="${y}" stroke="#a8acc0" stroke-width="${sw}"/>`;
+  }
+  // フレット番号
+  for(let f=1;f<=visibleFrets;f++){
+    const x=pL+(f-.5)*FW;
+    h+=`<text x="${x}" y="${pT+(nStr-1)*sGap+15}" text-anchor="middle" font-size="9" fill="#8a8eac" font-family="Space Grotesk,sans-serif">${f}</text>`;
+  }
+  // ポジションマーカー（3,5,7,9,12...）
+  [3,5,7,9,12,15,17,19,21,24].forEach(f=>{
+    if(f>visibleFrets)return;
+    const x=pL+(f-.5)*FW,y=pT+(nStr-1)/2*sGap;
+    if(f===12||f===24){
+      h+=`<circle cx="${x-FW*0.18}" cy="${y}" r="3" fill="rgba(0,0,0,.1)"/><circle cx="${x+FW*0.18}" cy="${y}" r="3" fill="rgba(0,0,0,.1)"/>`;
+    }else{
+      h+=`<circle cx="${x}" cy="${y}" r="3" fill="rgba(0,0,0,.1)"/>`;
+    }
+  });
+  // ハイライトする位置：背後に白縁取りを敷いてからメインカラーの円を描く（視認性アップ）
+  const hx=fret===0?pL-16:pL+(fret-.5)*FW;
+  const hy=pT+strIdx*sGap;
+  const r=Math.min(13, FW*0.32);
+  const color=revealAnswer?'#0d9e6e':'#1e7fd4';
+  h+=`<circle cx="${hx}" cy="${hy}" r="${r+3}" fill="#fff"/>`;
+  h+=`<circle cx="${hx}" cy="${hy}" r="${r}" fill="${color}"/>`;
+  if(revealAnswer){
+    h+=`<text x="${hx}" y="${hy}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(13,r*1.05)}" font-weight="700" fill="#fff" font-family="Space Grotesk,sans-serif">${fqCurrentNote}</text>`;
+  }else{
+    h+=`<text x="${hx}" y="${hy}" text-anchor="middle" dominant-baseline="central" font-size="${Math.min(15,r*1.2)}" font-weight="700" fill="#fff" font-family="Noto Sans JP,sans-serif">?</text>`;
+  }
+  svg.innerHTML=h;
+}
+
 function fqShowQuestion(){
   const q=randomFretQuestion();
   const mainEl=document.getElementById('fq-main');
   const subEl=document.getElementById('fq-sub');
+  const speed=parseInt(document.getElementById('fq-speed').value)*1000;
+
+  fqCurrentNote=q.note;
+  mainEl.style.color='';
   mainEl.classList.add('flash');
   setTimeout(()=>{
     mainEl.textContent=`${STRING_NAMES_FULL[q.str]} ${q.fret}f`;
-    mainEl.style.fontSize=q.str<=1?'34px':'38px';
-    subEl.textContent='答えを確認してください';
+    mainEl.style.fontSize='38px';
+    subEl.textContent='▶ 音名は？';
+    subEl.style.color='';
     mainEl.classList.remove('flash');
+    drawMiniFretboard(q.str, q.fret, false);
   },80);
-  // progress bar
-  const speed=parseInt(document.getElementById('fq-speed').value)*1000;
+
+  // プログレスバー：出題時間ぶん減っていく
   const bar=document.getElementById('fq-bar');
   bar.style.transition='none'; bar.style.width='100%';
   setTimeout(()=>{ bar.style.transition=`width ${speed}ms linear`; bar.style.width='0%'; },30);
+
+  // 出題時間が終わったら正解を2秒表示 → その後次の問題へ
+  fqTimer=setTimeout(()=>{
+    subEl.textContent='正解： '+fqCurrentNote;
+    subEl.style.color='var(--tonic)';
+    mainEl.style.color='var(--tonic)';
+    drawMiniFretboard(q.str, q.fret, true);
+    bar.style.transition='none'; bar.style.width='100%';
+    bar.style.background='var(--tonic)';
+
+    fqTimer=setTimeout(()=>{
+      bar.style.background='var(--subdominant)';
+      if(fqRunning) fqShowQuestion();
+    }, FQ_ANSWER_SHOW_MS);
+  }, speed);
 }
 
+let fqRunning=false;
+
 function toggleFretQuiz(){
-  if(fqTimer){ stopFretQuiz(); return; }
+  if(fqRunning){ stopFretQuiz(); return; }
+  fqCurrentNote=null;
+  fqRunning=true;
   const btn=document.getElementById('fq-btn');
   btn.textContent='■ ストップ'; btn.classList.add('running');
   fqShowQuestion();
-  const speed=()=>parseInt(document.getElementById('fq-speed').value)*1000;
-  fqTimer=setInterval(()=>fqShowQuestion(), speed());
-  // Re-schedule on speed change
+  // 速度スライダーの表示ラベルだけ更新（実際の速度は次の問題から自動反映される）
   document.getElementById('fq-speed').oninput=function(){
     document.getElementById('fq-speed-val').textContent=this.value+'秒';
-    if(fqTimer){ clearInterval(fqTimer); fqTimer=setInterval(()=>fqShowQuestion(),parseInt(this.value)*1000); }
   };
 }
 function stopFretQuiz(){
-  if(fqTimer){ clearInterval(fqTimer); fqTimer=null; }
+  fqRunning=false;
+  if(fqTimer){ clearTimeout(fqTimer); fqTimer=null; }
+  fqCurrentNote=null;
   const btn=document.getElementById('fq-btn');
   btn.textContent='▶ スタート'; btn.classList.remove('running');
-  document.getElementById('fq-main').textContent='—';
-  document.getElementById('fq-sub').textContent='スタートを押してください';
-  document.getElementById('fq-bar').style.width='0%';
+  const mainEl=document.getElementById('fq-main');
+  mainEl.textContent='—'; mainEl.style.color='';
+  const sub=document.getElementById('fq-sub');
+  sub.textContent='スタートを押してください'; sub.style.color='';
+  const bar=document.getElementById('fq-bar');
+  bar.style.width='0%'; bar.style.background='var(--subdominant)';
+  document.getElementById('fq-mini-fret').innerHTML='';
 }
 
 // ===== コード読みゲーム =====
